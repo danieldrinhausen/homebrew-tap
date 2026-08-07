@@ -1,0 +1,48 @@
+name: Update cask
+
+# Keeps Casks/tokenmax.rb pointing at the latest Tokenmax release.
+#
+# This lives in the tap rather than in the Tokenmax repo on purpose: a
+# cross-repo push would need a personal access token stored as a secret, and a
+# token that expires turns into releases that silently stop reaching the tap.
+# Polling from here needs nothing but the automatic GITHUB_TOKEN.
+#
+# The schedule is the safety net; `gh workflow run update-cask.yml -R
+# danieldrinhausen/homebrew-tap` right after publishing a release is the fast
+# path, and needs no secret either.
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-cask
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update cask to the latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./bin/update-cask
+
+      - name: Commit
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- Casks/tokenmax.rb; then
+            echo "cask already current"
+            exit 0
+          fi
+          version=$(sed -n 's/^  version "\(.*\)"$/\1/p' Casks/tokenmax.rb)
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update tokenmax to $version" -- Casks/tokenmax.rb
+          git push

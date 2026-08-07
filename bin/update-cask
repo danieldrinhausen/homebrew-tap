@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+#
+# Point Casks/tokenmax.rb at the latest published Tokenmax release.
+#
+# Rewrites nothing but the `version` and `sha256` lines, and only after the
+# release actually carries the DMG it claims to — a release published without
+# its asset, or with a name the cask's URL template cannot produce, is an error
+# here rather than a 404 for whoever runs `brew install` next.
+#
+# Runs the same way locally and in CI. Needs `gh` (authenticated) and `shasum`.
+
+set -euo pipefail
+
+repo=danieldrinhausen/Tokenmax
+root=$(git rev-parse --show-toplevel)
+cask="$root/Casks/tokenmax.rb"
+
+tag=$(gh release view --repo "$repo" --json tagName --jq .tagName)
+version=${tag#v}
+asset="Tokenmax-$version.dmg"
+
+if [ -z "$version" ]; then
+  echo "error: could not read the latest release tag from $repo" >&2
+  exit 1
+fi
+
+if ! gh release view "$tag" --repo "$repo" --json assets \
+  --jq '.assets[].name' | grep -qx "$asset"; then
+  echo "error: release $tag has no asset named $asset" >&2
+  echo "       the cask's url template cannot be satisfied; fix the release" >&2
+  exit 1
+fi
+
+current=$(sed -n 's/^  version "\(.*\)"$/\1/p' "$cask")
+if [ "$current" = "$version" ]; then
+  echo "cask is already at $version"
+  exit 0
+fi
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+gh release download "$tag" --repo "$repo" --pattern "$asset" --dir "$tmp"
+sha=$(shasum -a 256 "$tmp/$asset" | cut -d' ' -f1)
+
+# `sed -i` differs between BSD and GNU; a temp file behaves the same on both.
+sed -e "s/^  version \".*\"$/  version \"$version\"/" \
+    -e "s/^  sha256 \".*\"$/  sha256 \"$sha\"/" \
+    "$cask" >"$tmp/tokenmax.rb"
+mv "$tmp/tokenmax.rb" "$cask"
+
+echo "cask updated: $current -> $version"
+echo "sha256: $sha"
