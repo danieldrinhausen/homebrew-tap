@@ -1,6 +1,6 @@
 cask "tokenmax" do
-  version "0.1.8"
-  sha256 "e2918ddaa3e65ff65baf90627ab1f11c37e158618d38a027830e28a3fc20040c"
+  version "0.1.9"
+  sha256 "52cf9288b62dd2fee8810bb98b0c4997070b5efc28b38eba6b0a16521cc42989"
 
   url "https://github.com/danieldrinhausen/Tokenmax/releases/download/v#{version}/Tokenmax-#{version}.dmg",
       verified: "github.com/danieldrinhausen/Tokenmax/"
